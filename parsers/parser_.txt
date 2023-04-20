@@ -1,0 +1,3 @@
+class parser_(original_record:str)->dict:
+	"""preprocessing text"""
+	return structured_dict
