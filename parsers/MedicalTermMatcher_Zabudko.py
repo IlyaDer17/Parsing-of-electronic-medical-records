@@ -3,6 +3,7 @@ from spacy.matcher import Matcher, PhraseMatcher
 from pprint import pprint
 
 
+
 class MedicalTermMatcher:
     def __init__(self, path_to_dict):
         with open(path_to_dict) as f:
