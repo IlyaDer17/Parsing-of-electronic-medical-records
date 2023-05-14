@@ -14,7 +14,7 @@ class Stationary_Diagnosis(object):
         N = np.size(d)
         s = np.empty([N, 1], dtype=object)
         sentenses = np.empty([10, 1], dtype=object)
-        Type_diagnosis = np.empty([N, 2], dtype=object)
+        Type_diagnosis = np.empty([N, 1], dtype=object)
         Diagnosis_name = np.empty([N, 1], dtype=object)
         MKB = np.empty([N, 1], dtype=object)
         Disease_mode = np.empty([N, 1], dtype=object)
@@ -27,7 +27,7 @@ class Stationary_Diagnosis(object):
                 sentenses[k] = one
                 for two in one.split('. '):
                     if ('тоз' in two) == True or ('рит' in two) == True or ('ость' in two) == True or (
-                            'индром' in two) == True:
+                            'индром' in two) == True or ('ая' in two) == True or ('ий' in two) == True:
                         Diagnosis_name[i] = two
                 if ('Характер заболевания ' in sentenses[k - 1]) == True:
                     Disease_mode[i] = sentenses[k]
@@ -36,24 +36,10 @@ class Stationary_Diagnosis(object):
                         if len(two) > 1:
                             if two[1].isdigit() == True:
                                 MKB[i] = two
+                if ('КЛИНИЧЕСКИЙ' in one) == True or ('ОСЛОЖНЕНИЕ' in one) == True or ('СОПУТСТВУЮЩИЙ' in one) == True:
+                    Type_diagnosis[i] = one
+
             k = 0
-            words = word_tokenize(str(s[i]))
-            punctuations = list(string.punctuation)
-            words = [word for word in words if word not in punctuations]
-            bigram_collocation = BigramCollocationFinder.from_words(words)
-            for one in bigram_collocation.nbest(BigramAssocMeasures.likelihood_ratio, 10):
-                if one == ('ОСЛОЖНЕНИЕ', 'ПОСТУПЛЕНИЯ'):
-                    Type_diagnosis[i, :] = one
-                if one == ('ОСЛОЖНЕНИЕ', 'ВЫПИСКИ'):
-                    Type_diagnosis[i, :] = one
-                if one == ('КЛИНИЧЕСКИЙ', 'ДИАГНОЗ'):
-                    Type_diagnosis[i, :] = one
-                if one == ('СОПУТСТВУЮЩИЙ', 'КЛИНИЧЕСКИЙ'):
-                    Type_diagnosis[i, :] = one
-                if one == ('СОПУТСТВУЮЩИЙ', 'ПОСТУПЛЕНИЯ'):
-                    Type_diagnosis[i, :] = one
-                if one == ('СОПУТСТВУЮЩИЙ', 'ВЫПИСКИ'):
-                    Type_diagnosis[i, :] = one
         self.TD = Type_diagnosis
         self.MKB = MKB
         self.DN = Diagnosis_name
@@ -68,16 +54,3 @@ DN = pd.Series(list(a.DN))
 MKB = pd.Series(list(a.MKB))
 DM = pd.Series(list(a.DM))
 states = pd.DataFrame({'Вид диагноза': TD, 'Номер МКБ': MKB, 'Название диагноза': DN, 'Характер заболевания': DM})
-#string1 = str(s[1])
-#words = word_tokenize(string1)
-#punctuations = list(string.punctuation)
-#words = [word for word in words if word not in punctuations]
-#bigram_collocation = BigramCollocationFinder.from_words(words)
-#trigram_collocation = TrigramCollocationFinder.from_words(words)
-#print(s[1])
-#print("___________________")
-#print(words)
-#print("___________________")
-#print(bigram_collocation.nbest(BigramAssocMeasures.likelihood_ratio, 10))
-#print("___________________")
-#print(trigram_collocation.nbest(TrigramAssocMeasures.likelihood_ratio, 10))
