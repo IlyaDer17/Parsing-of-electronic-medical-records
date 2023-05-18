@@ -40,7 +40,7 @@ class PreoperativeEpicrisisParser:
 
         self.data = data + ' ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ'
         self.model = spacy.load('ru_core_news_lg')
-        self.doc = self.model(data)
+        self.doc = self.model(self.data)
         self.di = {}
         
     
@@ -63,7 +63,8 @@ class PreoperativeEpicrisisParser:
             token_pos = token.pos_
             token_dep = token.dep_ 
             token_head = token.head.text
-            print(f"{token_ind:<10}{token_text:<12}{token_pos:<10}"                   f"{token_dep:<10}{token_head:<12}")
+            print(f"{token_ind:<10}{token_text:<12}{token_pos:<10}" \
+                  f"{token_dep:<10}{token_head:<12}")
     
     
     def preprocessing(self):
@@ -96,6 +97,10 @@ class PreoperativeEpicrisisParser:
                     if t.pos_ == "SPACE":
                         cur_spaces.append(t.i)
                 
+                if len(cur_spaces) <= 3:
+                    cur_spaces = [len(self.doc),len(self.doc),len(self.doc)]
+                    ind_past -= 3
+                
                 # далее в список patients кладутся id пациентов
                 # в id могут быть скобки и запятые, которые считаются как токены, 
                 # поэтому сначала обработываются эти случаи, чтобы id правильно записался
@@ -107,7 +112,7 @@ class PreoperativeEpicrisisParser:
                     patients.append(self.doc[cur_spaces[-3]-3].text+self.doc[cur_spaces[-3]-2].text)
                 else:    
                     patients.append(self.doc[cur_spaces[-3]-1].text)
-                
+                    
                 # в список records кладутся наблюдения
                 # это токены от начала окна до id пациента
                 # опять же если была запятая в id немного другая обработка
@@ -118,8 +123,8 @@ class PreoperativeEpicrisisParser:
         
                 ind_past = ind_new
        
-        self.patients = patients[1:]
-        self.records = records[1:]
+        self.patients = patients
+        self.records = records
         
         # конечный словарь
         for pat, rec in zip(self.patients, self.records):
@@ -171,7 +176,7 @@ class PreoperativeEpicrisisParser:
                         cur_postfix = [] # постфикс - единицы измерения
                         
                         # считаются границы префикса
-                        while nlp[token.i+ind1].pos_ != 'PUNCT':
+                        while nlp[token.i+ind1].pos_ != 'PUNCT' and token.i+ind1 >= 0:
                             if nlp[token.i+ind1].pos_ != 'NUM':
                                 cur_prefix.append(nlp[token.i+ind1].text)
                             ind1 -= 1
@@ -259,22 +264,44 @@ data = pd.read_pickle('recs/med_recs_depers.pkl')
 data = data[data['Статус']=='ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ']
 
 
-parser = PreoperativeEpicrisisParser(data.to_string())
+text1 = data.to_string()
+text2 = ' '.join(data['Данные'].values)
+text3 = 'QRS : 100 мсек QT : 300 мсек L : S I g III гр. Фибрилляция трепетание предсердий, тахисистолическая форма, ЧЖС 162 уд в мин. Эл. ось S I g III. Признаки гипертр ЭХОКГ : Дата проведения , Рост : 172 см , Масса тела : 127.0 кг , Индекс массы тела : 42.9 кг м2'
+
+
+parser = PreoperativeEpicrisisParser(text1)
 parser.preprocessing()
 
 
 # json
-
 result = parser.find_features()
-
-print(result)
-
-
+# print(result)
 
 # датафреймы
-
 dataframes = parser.result_as_dataframe()
+# dataframes['Пациент 1']
+# dataframes['Пациент 2']
 
-print(dataframes['Пациент 1'])
 
-print(dataframes['Пациент 2'])
+parser = PreoperativeEpicrisisParser(text2)
+parser.preprocessing()
+
+# json
+result = parser.find_features()
+# print(result)
+
+# датафреймы
+dataframes = parser.result_as_dataframe()
+# dataframes['Пациент 1']
+
+
+parser = PreoperativeEpicrisisParser(text3)
+parser.preprocessing()
+
+# json
+result = parser.find_features()
+# print(result)
+
+# датафреймы
+dataframes = parser.result_as_dataframe()
+# dataframes['Пациент 1']
