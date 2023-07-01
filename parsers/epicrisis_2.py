@@ -96,8 +96,10 @@ class epicrisis_2():
             if "КЛИНИЧЕСКИЙ ДИАГНОЗ" in self.extracting()["Данные"].iloc[i]:
                 parts = self.extracting()["Данные"].iloc[i].split('. ')
                 for item in parts:
-                    if 'КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:' or 'КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:Основной:' in item:
+                    if 'КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:' in item:
                         item = item.replace('КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:', '')
+                    if 'КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:Основной:' in item:
+                        item = item.replace('КЛИНИЧЕСКИЙ ДИАГНОЗ:Основной:Основной', '')
                     self.structured_dict[self.extracting()["patient_ID"].iloc[i]][item] = \
                         1
 
