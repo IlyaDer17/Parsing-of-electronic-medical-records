@@ -1,307 +1,235 @@
-import numpy as np
 import pandas as pd
 import spacy
-import json
-import pickle
 
 
 
 class PreoperativeEpicrisisParser:
     """
-    Парсер для данных предоперационного эпикриза
-
+    парсер для данных предоперационного эпикриза
     ...
-
-    Attributes
+    атрибуты
     ----------
-    data : str
-        Данные предоперационного эпикриза в виде строки
+    data (str) : данные предоперационного эпикриза
+    path_to_dict (str) : путь до словаря мед терминов
 
-    Methods
+    методы
     -------
-    print_tokens():
-        Вывод токенов
-    preprocessing():
-        Обработка данных в нужное представление
-    find_features():
-        Результат обработки неструктурированных записей в виде json
-    result_as_dataframe():
-        Результат обработки в виде пациент - датафрейм
+    _preprocessing(): лемматизация, нижний регистр и удаление стоп-слов
+    _find_absent(index): находит есть ли производные от "отсутствует" после фичи
+    _closest_num(index): находит ближайшие числа после фичи, если они есть
+    structure(): возвращает словарь вида признак:значение
     """
-
+        
+    def _preprocessing(self):        
+        self._preprocessed_tokens = []
+        n_tokens = 1
+        for token in self._doc:
+            if not token.is_stop and not token.is_punct:
+                self._preprocessed_tokens.append([n_tokens, token.text.lower(), token.lemma_, token.pos_, token.dep_, token.head.lemma_])
+                n_tokens += 1
+        self.l = n_tokens
+        
     
-    def __init__(self, data: str):
+    def __init__(self, data: str, path_to_dict: str, model='init'):
         """
-        Parameters
-        ----------
-        data : str
-            Данные в виде строки
+        параметры
+        -------
+        data (str) : данные предоперационного эпикриза
+        path_to_dict (str) : путь до словаря мед терминов
+        model : если 'init' (по дефолту), то модель инициализируется внутри класса (как и надо - подается только два параметра),
+                иначе модель иниц. вне класса и подается как входной параметр 
+                (нужно чисто для первого теста, чтобы не надо было иниц. модель 250 раз (гигадолго))
         """
-
-        self.data = data + ' ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ'
-        self.model = spacy.load('ru_core_news_lg')
-        self.doc = self.model(self.data)
+        
+        self.data = data
+        self._terms_df = pd.read_csv(path_to_dict, sep=' ', header=None)
+        div = self._terms_df[self._terms_df.iloc[:,0]=='------'].index
+        self._terms_nums = [i for i in self._terms_df.iloc[:div.values[0],0]]
+        self._terms_present = [i for i in self._terms_df.iloc[div.values[0]+1:,0]]
+        if model == 'init':
+            self._model = spacy.load('ru_core_news_lg')
+        else:
+            self._model = model
+        self._doc = self._model(self.data)
+        self._preprocessing()
         self.di = {}
-        
+        self._duplicate = 1
     
-    def print_tokens(self):
+    
+    def _find_absent(self, index):
         """
-        Вывод всех токенов в виде (индекс, токен, часть, зависимость, родитель)
-        
-        Parameters
-        ----------
-        None
-        
-        Returns
+        параметры
         -------
-        None
-        """
+        index (int) : индекс текущего токена
 
-        for token in self.doc:
-            token_ind = token.i
-            token_text = token.text
-            token_pos = token.pos_
-            token_dep = token.dep_ 
-            token_head = token.head.text
-            print(f"{token_ind:<10}{token_text:<12}{token_pos:<10}" \
-                  f"{token_dep:<10}{token_head:<12}")
-    
-    
-    def preprocessing(self):
-        """
-        Деление данных из строки на записи вида пациент - значения.
-        Сохраняется в виде словаря di
-        
-        Parameters
-        ----------
-        None
-
-        Returns
+        возвращает
         -------
-        None
+        (int) : 1 если есть производные слова отсутствует, иначе 0
         """
         
-        patients = []
-        records = []
-        # начало и конец текущего окна
-        ind_past = 0
-        ind_new = 0
+        token = self._preprocessed_tokens
+        offset = 0
+        res = []
+        list_absent = ['отрицательно','отрицает','нет','нету','отсутствует','отс','отст','отриц','отрицат','отрицательный','отрицательн']
         
-        # запсиси делятся по сочетанию ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ
-        for token in self.doc:
-            if self.doc[token.i].text == 'ПРЕДОПЕРАЦИОННЫЙ' and self.doc[token.i+1].text == 'ЭПИКРИЗ':
-                ind_new = token.i
-                cur_spaces = []
+        while (offset < 3 and index+offset < self.l-2):
+            offset += 1
+            if token[index+offset][1] in list_absent:
+                return 0
+        return 1
+    
+    
+    def _closest_num(self, index):
+        """
+        параметры
+        -------
+        index (int) : индекс текущего токена
 
-                for t in self.doc[ind_past:ind_new]:
-                    if t.pos_ == "SPACE":
-                        cur_spaces.append(t.i)
+        возвращает
+        -------
+        (str) : строка с числовыми значениями для текущей фичи
+        """
+        
+        token = self._preprocessed_tokens
+        offset = 0
+        res = []
+        
+        while (token[index+offset][3] != 'NUM'):
+            offset += 1
+            if (index+offset == self.l-1) or (offset > 4):
+                return '-'
+            
+        while (token[index+offset][3] == 'NUM'):
+            res.append(token[index+offset][1])
+            offset += 1
+            if (index+offset) == self.l-1:
+                break
+
+        return ' '.join(res)
+            
+    
+    def structure(self):
+        """
+        возвращает
+        -------
+        di (dict) : словарь вида признак:значение
+        """
+        token = self._preprocessed_tokens
+        for i in range(len(token)):
+            key = ''
+            value = 0
+            if i+2 == self.l:
+                break
+            tk = token[i]
+            pred_tk = token[i-1][1]
+            post_tk = token[i+1][1]
+            tk_i, tk_text, tk_lem, tk_pos, tk_dep, tk_head = tk
+            
+            # общая обработка через словарь мед терминов
+            # сначла для фичей, где могут быть числовые значения, потом на присутствие болезней
+            if tk_lem in self._terms_nums:
+                key = tk_lem
+                value = self._closest_num(i)
                 
-                if len(cur_spaces) <= 3:
-                    cur_spaces = [len(self.doc),len(self.doc),len(self.doc)]
-                    ind_past -= 3
+            
+            if tk_lem in self._terms_present:
+                key = tk_lem
+                value = self._find_absent(i)
                 
-                # далее в список patients кладутся id пациентов
-                # в id могут быть скобки и запятые, которые считаются как токены, 
-                # поэтому сначала обработываются эти случаи, чтобы id правильно записался
-                # в общем они ищутся как третий с конца токен, не считая пробелы
-                
-                if self.doc[cur_spaces[-3]-1].text in ["]"]:
-                    patients.append(self.doc[cur_spaces[-3]-2].text+self.doc[cur_spaces[-3]-1].text)
-                elif self.doc[cur_spaces[-3]-1].text in [","]:
-                    patients.append(self.doc[cur_spaces[-3]-3].text+self.doc[cur_spaces[-3]-2].text)
-                else:    
-                    patients.append(self.doc[cur_spaces[-3]-1].text)
-                    
-                # в список records кладутся наблюдения
-                # это токены от начала окна до id пациента
-                # опять же если была запятая в id немного другая обработка
-                if self.doc[cur_spaces[-3]-1].text in [","]:
-                    records.append(self.doc[ind_past+3:cur_spaces[-3]-4].text)
+            # дальше идет обработка частных случаев, которые не попадают под обработку через словарь    
+            # возраст
+            if tk_text in ['лет','год']:
+                key = 'возраст'
+                value = pred_tk
+            
+            # специальные qrs
+            if tk_text in ['friderici','bazett','sagi']:
+                key = f'QTc {tk_text}'
+                value = self._closest_num(i)
+            
+            # все с лж
+            if tk_text == 'лж':
+                if token[i+1][3] != 'NUM':
+                    key = f'{pred_tk} {tk_text} {post_tk}'
                 else:
-                    records.append(self.doc[ind_past+3:cur_spaces[-3]-2].text)
-        
-                ind_past = ind_new
-       
-        self.patients = patients
-        self.records = records
-        
-        # конечный словарь
-        for pat, rec in zip(self.patients, self.records):
-            self.di.setdefault(pat, []).append(rec)
-        
-           
-    def find_features(self):
-        """
-        Нахождение сущностей
-        
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        result : json
-            Размеченные данные в виде json
-        """
-        
-        result = {}
-        patient_ind = 0
-        
-        for key in np.unique(np.array(self.patients)):
-            patient_ind += 1
+                    key = f'{pred_tk} {tk_text}'
+                if pred_tk in list(self.di.keys()):
+                    del self.di[pred_tk]
+                value = self._closest_num(i)
             
-            # токенизация для наблюдений текущего пациента
-            nlp = self.model(' '.join(self.di[key]))
-
-            cur_result = {'ID': key, 'Название признака':[], 
-                          'Значение': [], 'Единицы измерения':[]}
-            
-            patient_label = f'Пациент {patient_ind}'
-            
-            for token in nlp:
-                if token.i != len(nlp)-1:
-                    if nlp[token.i].pos_ == 'PUNCT':
-                        ind1 = -1
-                    elif nlp[token.i].pos_ == 'PROPN':
-                        ind1 = 0
-                    
-                    # если PROPN PUNCT NUM или PROPN NUM
-                    # например Рост : 180 или Рост 180
-                    if nlp[token.i].pos_ in ['PUNCT','PROPN'] and nlp[token.i+1].pos_ == 'NUM':
-                        ind2 = 1
-                        ind_v = 1
-                        cur_prefix = [] # префикс - название признака
-                        cur_values = [] # само значение
-                        cur_postfix = [] # постфикс - единицы измерения
-                        
-                        # считаются границы префикса
-                        while nlp[token.i+ind1].pos_ != 'PUNCT' and token.i+ind1 >= 0:
-                            if nlp[token.i+ind1].pos_ != 'NUM':
-                                cur_prefix.append(nlp[token.i+ind1].text)
-                            ind1 -= 1
-                        
-                        # считаются границы постфикса
-                        while nlp[token.i+ind2].pos_ != 'PROPN':
-                            if nlp[token.i+ind2].pos_ != 'NUM':
-                                cur_postfix.append(nlp[token.i+ind2].text)
-                            ind2 += 1
-                            if token.i+ind2 == len(nlp)-2:
-                                break
-
-                        cur_prefix.reverse()
-                    
-                        # значение
-                        while nlp[token.i+ind_v].pos_ == 'NUM':
-                            cur_values.append(nlp[token.i+ind_v].text)
-                            ind_v += 1
-
-                        # оформление
-                        if cur_prefix:
-                            pref_str = ' '.join(cur_prefix)
-                            pref_str = pref_str.replace('мсек','')
-                            cur_result['Название признака'].append(pref_str)
-
-                            cur_result['Значение'].append(' '.join(cur_values))
-                            
-                            # обработка исключений типа ненужных знаков препинания и тд
-                            # нужно чтобы исключались не отсносящиеся к текущим единицам слова
-                            if cur_postfix:
-                                post_str = ' '.join(cur_postfix)
-                                post_cut1 = ' '.join(cur_postfix).find(',')
-                                post_cut2 = ' '.join(cur_postfix).find(';')
-
-                                if post_cut1 != -1 and post_cut2 == -1:
-                                    post_str = post_str[:post_cut1]
-                                elif post_cut1 == -1 and post_cut2 != -1:
-                                    post_str = post_str[:post_cut2]
-                                elif post_cut1 != -1 and post_cut2 != -1:
-                                    post_str = post_str[:min(post_cut1,post_cut2)]
-                                if post_str:
-                                    cur_result['Единицы измерения'].append(post_str[:10])
-                                else:
-                                    cur_result['Единицы измерения'].append('-')
-
-                            else:
-                                cur_result['Единицы измерения'].append('-')
-
-            result[patient_label] = cur_result
-            
+            # гб
+            if tk_lem == 'болезнь' and token[i-1][2] == 'гипертонический':
+                key = 'гб'
+                value = 1
+                 
+            # имт
+            if tk_text == 'индекс' and post_tk == 'массы' and token[i+2][1] == 'тела':
+                key = 'индекс массы тела'
+                value = self._closest_num(i)
                 
-        self.features = result
-        return json.dumps(result, indent=4, ensure_ascii=False)
-    
-    
-    def result_as_dataframe(self):
-        """
-        Преобразует результат в словарь: пациент - датафрейм
-        
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        result : dict
-            Размеченные данные в виде словаря, состоящего из датафреймов
-        """
-        
-        result_dfs = {}
-        
-        for n_patient, n_record in self.features.items():
-            i, x, y, z = [val for val in n_record.values()]
-            result_dfs[n_patient] = pd.DataFrame(list(zip(x, y, z)), 
-                                                 columns = ['Название признака','Значение','Единицы измерения'])
+            # ппт
+            if tk_lem == 'площадь' and token[i+1][2] == 'поверхность' and token[i+2][2] == 'тело':
+                key = 'площадь поверхности тела'
+                value = self._closest_num(i)
             
-        return result_dfs
-
-
-
-
-
-
-data = pd.read_pickle('recs/med_recs_depers.pkl')
-data = data[data['Статус']=='ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ']
-
-
-text1 = data.to_string()
-text2 = ' '.join(data['Данные'].values)
-text3 = 'QRS : 100 мсек QT : 300 мсек L : S I g III гр. Фибрилляция трепетание предсердий, тахисистолическая форма, ЧЖС 162 уд в мин. Эл. ось S I g III. Признаки гипертр ЭХОКГ : Дата проведения , Рост : 172 см , Масса тела : 127.0 кг , Индекс массы тела : 42.9 кг м2'
-
-
-parser = PreoperativeEpicrisisParser(text1)
-parser.preprocessing()
-
-
-# json
-result = parser.find_features()
-# print(result)
-
-# датафреймы
-dataframes = parser.result_as_dataframe()
-# dataframes['Пациент 1']
-# dataframes['Пациент 2']
-
-
-parser = PreoperativeEpicrisisParser(text2)
-parser.preprocessing()
-
-# json
-result = parser.find_features()
-# print(result)
-
-# датафреймы
-dataframes = parser.result_as_dataframe()
-# dataframes['Пациент 1']
-
-
-parser = PreoperativeEpicrisisParser(text3)
-parser.preprocessing()
-
-# json
-result = parser.find_features()
-# print(result)
-
-# датафреймы
-dataframes = parser.result_as_dataframe()
-# dataframes['Пациент 1']
+            # пароксизм
+            if tk_lem == 'пароксизм':
+                key = f'пароксизм {post_tk}'
+                value = 1
+            
+            # стеноз
+            if tk_lem == 'стеноз':
+                key = f'{tk_lem} {post_tk}'
+                value = 1 
+                
+            # гепатит
+            if tk_lem == 'гепатит':
+                key = f'{tk_lem} {post_tk}'
+                value = self._find_absent(i)
+            
+            # жэ
+            if tk_lem == 'жэ':
+                if post_tk in ['1','2']:
+                    key = f'{pred_tk} ЖЭ {post_tk} типа'
+                    value = self._closest_num(i+2)
+                else:
+                    key = f'{pred_tk} ЖЭ'
+                    value = self._closest_num(i)
+            
+            # группа крови
+            if tk_lem == 'кровь' and pred_tk == 'группа':
+                try:
+                    if post_tk == 'ab0':
+                        key = f'{pred_tk} {tk_text} {post_tk}'
+                    else:
+                        key = f'{pred_tk} {tk_text}'
+                    cur_min = min(5,self.l-(i+1))
+                    for j in range(cur_min):
+                        if token[i+j][1] in ['0','a','b','ab','nt']:
+                            value = token[i+j][1]
+                            break
+                except Exception as e:
+                    print(e)
+            
+            if key != '':
+                if key in self.di.keys():
+                    while (key in self.di.keys()):
+                        key = f'{key} ({self._duplicate})'
+                        self._duplicate += 1
+                    self._duplicate = 1
+                self.di[key] = value
+                
+        del self._model
+        del self._doc
+        
+        for k in self.di:
+            try:
+                num_value = int(self.di[k])
+            except ValueError:
+                try:
+                    num_value = float(self.di[k])
+                except ValueError:
+                    num_value = self.di[k]
+            self.di[k] = num_value  
+                
+        return self.di
