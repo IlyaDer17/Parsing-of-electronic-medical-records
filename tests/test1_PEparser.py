@@ -10,7 +10,7 @@ from parsers.PE_parser import PreoperativeEpicrisisParser as parser
 
 
 def test1():
-    df = pd.read_pickle('recs/med_recs_depers.pkl')
+    df = pd.read_pickle(f'{DIR}/recs/med_recs_depers.pkl')
     data = df[df['Статус']=='ПРЕДОПЕРАЦИОННЫЙ ЭПИКРИЗ']
     data = list(data['Данные'].values)
     model = spacy.load('ru_core_news_lg')
