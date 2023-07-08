@@ -11,7 +11,6 @@ with open(f'{DIR}/recs/med_recs_depers.pkl', 'rb') as f:
     x = pickle.load(f)
 d = x.loc[x.Статус == 'ДИАГНОЗ СТАЦИОНАРНЫЙ', 'Данные']
 path_dictionary = f'{DIR}/terms/dictionary.csv'
-print(path_dictionary)
 for i in range(0, np.size(d)):
         try:
             Object = parser(d.iloc[i], path_dictionary)
