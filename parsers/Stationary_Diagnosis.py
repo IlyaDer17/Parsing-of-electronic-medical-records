@@ -72,7 +72,7 @@ class Stationary_Diagnosis(object):
                     for l in range(0, j):
                         if (str_col[j, 0] == str_col[l, 1] and str_col[j, 1] == str_col[l, 2] and str_col[l, :].any != None):
                             k = k - 1
-                            print(str(str_col[l, :]) + ' ' + str(str_col[j, 2]))
+
                             self.dict.at[k, 'Величина'] = ' '.join(map(str, str_col[l, :])) + ' ' + str(str_col[j, 2])
                             self.dict.at[k, 'Результат'] = 'True'
                             self.dict.at[k, 'Единица измерения'] = 'Лог'
@@ -82,20 +82,16 @@ class Stationary_Diagnosis(object):
         print(self.dict)
     def Value_finder(self, i, t):
         text = str(self.str_arr[i])
-        print(text)
         words = text.split(' ')
         index_name = np.zeros(np.size(self.dict))
         delta_r = np.ones(np.size(self.dict)) * 100
         for one in words:
             if ('I' in one) == True or any(chr.isdigit() for chr in one) == True:
-                print('hi')
                 index_val = text.rindex(one)
                 for j in range(t + 1, int(np.shape(self.dict)[0])):
-                    print(self.dict.at[j, 'Величина'])
                     index_name[j] = int(text.rindex(self.dict.at[j, 'Величина']) + len(self.dict.at[j, 'Величина']))
                     if index_val > index_name[j]:
                         delta_r[j] = index_val - index_name[j]
-                print(delta_r)
                 if ('I' in one) == True:
                     self.dict.at[list(delta_r).index(min(delta_r[:])), 'Результат'] = one
                     self.dict.at[list(delta_r).index(min(delta_r[:])), 'Единица измерения'] = 'Стадия/степень'
