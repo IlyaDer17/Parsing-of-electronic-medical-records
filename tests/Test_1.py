@@ -14,7 +14,6 @@ path_dictionary = f'{DIR}/terms/dictionary.csv'
 for i in range(0, np.size(d)):
         try:
             Object = parser(d.iloc[i], path_dictionary)
-            print(Object)
             print('________________________________________________')
         except:
             i = i+1
