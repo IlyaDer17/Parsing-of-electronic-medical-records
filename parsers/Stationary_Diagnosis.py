@@ -13,13 +13,10 @@ import csv
 class Stationary_Diagnosis(object):
     def __init__(self, string, path_dictionary):
         self.str = string
-        with open(path_dictionary, 'r') as r_file:
-            file_reader = csv.reader(r_file)
-            data = np.empty([100, 1], dtype=object)
-            k = -1
-            for row in file_reader:
-                k = k + 1
-                data[k] = row[0]
+        file_reader = pd.read_csv(str(path_dictionary), sep=' ', header=None)
+        data = np.empty([100, 1], dtype=object)
+        for i in range(0, np.size(file_reader)):
+            data[i] = file_reader.T[i]
         self.dictionary = data
         self.Str_div()
         self.Table_build()
