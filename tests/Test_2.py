@@ -10,9 +10,12 @@ from parsers.Stationary_Diagnosis import Stationary_Diagnosis as parser
 with open(f'{DIR}/recs/med_recs_depers.pkl', 'rb') as f:
     x = pickle.load(f)
 d = x.loc[x.Статус == 'ЖАЛОБЫ', 'Данные']
-path_dictionary = f'{DIR}/terms/dictionary.csv'
+path_dictionary = f'{DIR}/terms/Dictionary.txt'
+Record = d.iloc[np.random.random_integers(np.size(d))]
 try:
-    Object = parser(d.iloc[np.random.random_integers(np.size(d))], path_dictionary)
+    print(Record)
     print('________________________________________________')
+    Object = parser(Record, path_dictionary)
 except:
+    print(Record)
     print('Ошибка')
