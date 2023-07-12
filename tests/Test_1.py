@@ -10,10 +10,11 @@ from parsers.Stationary_Diagnosis import Stationary_Diagnosis as parser
 with open(f'{DIR}/recs/med_recs_depers.pkl', 'rb') as f:
     x = pickle.load(f)
 d = x.loc[x.Статус == 'ДИАГНОЗ СТАЦИОНАРНЫЙ', 'Данные']
-path_dictionary = f'{DIR}/terms/dictionary.csv'
+path_dictionary = f'{DIR}/terms/Dictionary.txt'
 for i in range(0, np.size(d)):
         try:
             Object = parser(d.iloc[i], path_dictionary)
             print('________________________________________________')
         except:
             i = i+1
+
